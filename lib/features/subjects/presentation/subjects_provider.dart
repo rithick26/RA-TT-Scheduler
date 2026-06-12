@@ -5,10 +5,11 @@ import '../../../../core/db/db_helper.dart';
 import '../domain/subject.dart';
 import '../../teachers/presentation/teachers_provider.dart';
 
-final subjectsProvider = StateNotifierProvider<SubjectsNotifier, AsyncValue<List<Subject>>>((ref) {
-  final teachersNotifier = ref.watch(teachersProvider.notifier);
-  return SubjectsNotifier(teachersNotifier);
-});
+final subjectsProvider =
+    StateNotifierProvider<SubjectsNotifier, AsyncValue<List<Subject>>>((ref) {
+      final teachersNotifier = ref.watch(teachersProvider.notifier);
+      return SubjectsNotifier(teachersNotifier);
+    });
 
 class SubjectsNotifier extends StateNotifier<AsyncValue<List<Subject>>> {
   final TeachersNotifier teachersNotifier;
@@ -22,7 +23,7 @@ class SubjectsNotifier extends StateNotifier<AsyncValue<List<Subject>>> {
     state = const AsyncValue.loading();
     try {
       final db = await _dbHelper.database;
-      
+
       // Query with joins to get faculty names
       final List<Map<String, dynamic>> maps = await db.rawQuery('''
         SELECT 
@@ -36,7 +37,7 @@ class SubjectsNotifier extends StateNotifier<AsyncValue<List<Subject>>> {
         LEFT JOIN teachers t3 ON s.faculty3_id = t3.id
         ORDER BY s.year ASC, s.course_code ASC
       ''');
-      
+
       final list = maps.map((map) => Subject.fromMap(map)).toList();
       state = AsyncValue.data(list);
     } catch (e, stack) {
@@ -72,7 +73,7 @@ class SubjectsNotifier extends StateNotifier<AsyncValue<List<Subject>>> {
   Future<void> deleteSubject(int id) async {
     try {
       final db = await _dbHelper.database;
-      
+
       // Delete associated inputs & slots via cascade
       await db.delete('subjects', where: 'id = ?', whereArgs: [id]);
       await loadSubjects();
@@ -120,7 +121,12 @@ class SubjectsNotifier extends StateNotifier<AsyncValue<List<Subject>>> {
             final fac2Val = row.length > 6 ? row[6]?.value : null;
             final fac3Val = row.length > 7 ? row[7]?.value : null;
 
-            if (codeVal != null && titleVal != null && yearVal != null && semVal != null && typeVal != null && fac1Val != null) {
+            if (codeVal != null &&
+                titleVal != null &&
+                yearVal != null &&
+                semVal != null &&
+                typeVal != null &&
+                fac1Val != null) {
               final String code = codeVal.toString().trim();
               final String title = titleVal.toString().trim();
               final int year = int.tryParse(yearVal.toString()) ?? 1;
@@ -134,7 +140,7 @@ class SubjectsNotifier extends StateNotifier<AsyncValue<List<Subject>>> {
               if (code.isNotEmpty && title.isNotEmpty && fac1Name.isNotEmpty) {
                 // 1. Resolve or create Faculty 1
                 final int fac1Id = await _getOrCreateTeacherId(txn, fac1Name);
-                
+
                 // 2. Resolve or create Faculty 2
                 int? fac2Id;
                 if (fac2Name.isNotEmpty) {
@@ -165,6 +171,8 @@ class SubjectsNotifier extends StateNotifier<AsyncValue<List<Subject>>> {
                     'faculty1_id': fac1Id,
                     'faculty2_id': fac2Id,
                     'faculty3_id': fac3Id,
+                    'is_fixed': 0,
+                    'locked_slots': '[]',
                   });
                   importedCount++;
                 } else {
@@ -192,7 +200,8 @@ class SubjectsNotifier extends StateNotifier<AsyncValue<List<Subject>>> {
       });
 
       if (importedCount > 0) {
-        await teachersNotifier.loadTeachers(); // Reload teachers list in case new ones were added
+        await teachersNotifier
+            .loadTeachers(); // Reload teachers list in case new ones were added
         await loadSubjects();
       }
       return importedCount;

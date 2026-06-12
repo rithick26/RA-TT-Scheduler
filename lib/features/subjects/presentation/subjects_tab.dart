@@ -19,7 +19,8 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
   final _titleController = TextEditingController();
-  
+  bool _isFixed = false;
+  List<String> _lockedSlots = [];
   int _selectedYear = 1;
   int _selectedSemester = 1;
   String _selectedType = "Theory";
@@ -37,7 +38,7 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
   void _showAddEditDialog([Subject? subject, int? presetYear]) {
     final isEditing = subject != null;
     final teachersState = ref.read(teachersProvider);
-    
+
     final List<Teacher> teachers = teachersState.maybeWhen(
       data: (list) => list,
       orElse: () => [],
@@ -48,7 +49,9 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text("No Teachers Available"),
-          content: const Text("You must add teachers first before adding subjects."),
+          content: const Text(
+            "You must add teachers first before adding subjects.",
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -66,18 +69,33 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
       _selectedYear = subject.year;
       _selectedSemester = subject.semester;
       _selectedType = subject.subjectType;
-      _faculty1Id = teachers.any((t) => t.id == subject.faculty1Id) ? subject.faculty1Id : teachers.first.id;
-      _faculty2Id = subject.faculty2Id != null && teachers.any((t) => t.id == subject.faculty2Id) ? subject.faculty2Id : null;
-      _faculty3Id = subject.faculty3Id != null && teachers.any((t) => t.id == subject.faculty3Id) ? subject.faculty3Id : null;
+      _faculty1Id = teachers.any((t) => t.id == subject.faculty1Id)
+          ? subject.faculty1Id
+          : teachers.first.id;
+      _faculty2Id =
+          subject.faculty2Id != null &&
+              teachers.any((t) => t.id == subject.faculty2Id)
+          ? subject.faculty2Id
+          : null;
+      _faculty3Id =
+          subject.faculty3Id != null &&
+              teachers.any((t) => t.id == subject.faculty3Id)
+          ? subject.faculty3Id
+          : null;
+      _isFixed = subject.isFixed;
+      _lockedSlots = List<String>.from(subject.lockedSlots ?? <String>[]);
     } else {
       _codeController.clear();
       _titleController.clear();
       _selectedYear = presetYear ?? 1;
-      _selectedSemester = (_selectedYear * 2) - 1; // Default odd semester for selected year
+      _selectedSemester =
+          (_selectedYear * 2) - 1; // Default odd semester for selected year
       _selectedType = "Theory";
       _faculty1Id = teachers.isNotEmpty ? teachers.first.id : null;
       _faculty2Id = null;
       _faculty3Id = null;
+      _isFixed = false;
+      _lockedSlots = [];
     }
 
     showDialog(
@@ -93,18 +111,26 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                 children: [
                   TextFormField(
                     controller: _codeController,
-                    decoration: const InputDecoration(labelText: "Course Code", border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: "Course Code",
+                      border: OutlineInputBorder(),
+                    ),
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) return "Enter course code";
+                      if (value == null || value.trim().isEmpty)
+                        return "Enter course code";
                       return null;
                     },
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _titleController,
-                    decoration: const InputDecoration(labelText: "Course Title", border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: "Course Title",
+                      border: OutlineInputBorder(),
+                    ),
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) return "Enter course title";
+                      if (value == null || value.trim().isEmpty)
+                        return "Enter course title";
                       return null;
                     },
                   ),
@@ -114,7 +140,10 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                       Expanded(
                         child: DropdownButtonFormField<int>(
                           value: _selectedYear,
-                          decoration: const InputDecoration(labelText: "Year", border: OutlineInputBorder()),
+                          decoration: const InputDecoration(
+                            labelText: "Year",
+                            border: OutlineInputBorder(),
+                          ),
                           items: const [
                             DropdownMenuItem(value: 1, child: Text("Year 1")),
                             DropdownMenuItem(value: 2, child: Text("Year 2")),
@@ -136,10 +165,16 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                       Expanded(
                         child: DropdownButtonFormField<int>(
                           value: _selectedSemester,
-                          decoration: const InputDecoration(labelText: "Semester", border: OutlineInputBorder()),
+                          decoration: const InputDecoration(
+                            labelText: "Semester",
+                            border: OutlineInputBorder(),
+                          ),
                           items: List.generate(2, (index) {
                             final semNum = (_selectedYear * 2) - 1 + index;
-                            return DropdownMenuItem(value: semNum, child: Text("Semester $semNum"));
+                            return DropdownMenuItem(
+                              value: semNum,
+                              child: Text("Semester $semNum"),
+                            );
                           }),
                           onChanged: (val) {
                             if (val != null) {
@@ -155,12 +190,24 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: _selectedType,
-                    decoration: const InputDecoration(labelText: "Subject Type", border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: "Subject Type",
+                      border: OutlineInputBorder(),
+                    ),
                     items: const [
                       DropdownMenuItem(value: "Theory", child: Text("Theory")),
-                      DropdownMenuItem(value: "Lab", child: Text("Lab (Continuous block)")),
-                      DropdownMenuItem(value: "Project", child: Text("Project")),
-                      DropdownMenuItem(value: "Additional", child: Text("Additional")),
+                      DropdownMenuItem(
+                        value: "Lab",
+                        child: Text("Lab (Continuous block)"),
+                      ),
+                      DropdownMenuItem(
+                        value: "Project",
+                        child: Text("Project"),
+                      ),
+                      DropdownMenuItem(
+                        value: "Additional",
+                        child: Text("Additional"),
+                      ),
                     ],
                     onChanged: (val) {
                       if (val != null) {
@@ -171,9 +218,67 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                     },
                   ),
                   const SizedBox(height: 12),
+
+                  CheckboxListTile(
+                    value: _isFixed,
+                    title: const Text("Fixed Classes"),
+                    subtitle: const Text("Lock specific periods in timetable"),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        _isFixed = value ?? false;
+
+                        if (!_isFixed) {
+                          _lockedSlots.clear();
+                        }
+                      });
+                    },
+                  ),
+                  if (_isFixed)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Select Fixed Periods",
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: List.generate(40, (index) {
+                            final day = index ~/ 8;
+                            final period = index % 8;
+
+                            final slot = "${day}_$period";
+
+                            final selected = _lockedSlots.contains(slot);
+
+                            return FilterChip(
+                              label: Text("D${day + 1}-P${period + 1}"),
+                              selected: selected,
+                              onSelected: (value) {
+                                setDialogState(() {
+                                  if (value) {
+                                    _lockedSlots.add(slot);
+                                  } else {
+                                    _lockedSlots.remove(slot);
+                                  }
+                                });
+                              },
+                            );
+                          }),
+                        ),
+                      ],
+                    ),
+                  const SizedBox(height: 12),
                   DropdownButtonFormField<int>(
                     value: _faculty1Id,
-                    decoration: const InputDecoration(labelText: "Faculty 1 (Required)", border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: "Faculty 1 (Required)",
+                      border: OutlineInputBorder(),
+                    ),
                     items: teachers.map((t) {
                       return DropdownMenuItem(value: t.id, child: Text(t.name));
                     }).toList(),
@@ -184,15 +289,25 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                         });
                       }
                     },
-                    validator: (val) => val == null ? "Select primary faculty" : null,
+                    validator: (val) =>
+                        val == null ? "Select primary faculty" : null,
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int?>(
                     value: _faculty2Id,
-                    decoration: const InputDecoration(labelText: "Faculty 2 (Optional)", border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: "Faculty 2 (Optional)",
+                      border: OutlineInputBorder(),
+                    ),
                     items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text("- None -")),
-                      ...teachers.map((t) => DropdownMenuItem(value: t.id, child: Text(t.name))),
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text("- None -"),
+                      ),
+                      ...teachers.map(
+                        (t) =>
+                            DropdownMenuItem(value: t.id, child: Text(t.name)),
+                      ),
                     ],
                     onChanged: (val) {
                       setDialogState(() {
@@ -203,10 +318,19 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int?>(
                     value: _faculty3Id,
-                    decoration: const InputDecoration(labelText: "Faculty 3 (Optional)", border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: "Faculty 3 (Optional)",
+                      border: OutlineInputBorder(),
+                    ),
                     items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text("- None -")),
-                      ...teachers.map((t) => DropdownMenuItem(value: t.id, child: Text(t.name))),
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text("- None -"),
+                      ),
+                      ...teachers.map(
+                        (t) =>
+                            DropdownMenuItem(value: t.id, child: Text(t.name)),
+                      ),
                     ],
                     onChanged: (val) {
                       setDialogState(() {
@@ -226,6 +350,15 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
             FilledButton(
               onPressed: () async {
                 if (_formKey.currentState!.validate()) {
+                  if (_isFixed && _lockedSlots.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Select at least one fixed period'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
                   final notifier = ref.read(subjectsProvider.notifier);
                   final newSubject = Subject(
                     id: subject?.id,
@@ -237,6 +370,8 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                     faculty1Id: _faculty1Id!,
                     faculty2Id: _faculty2Id,
                     faculty3Id: _faculty3Id,
+                    isFixed: _isFixed,
+                    lockedSlots: _lockedSlots,
                   );
 
                   try {
@@ -249,7 +384,10 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                   } catch (e) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+                        SnackBar(
+                          content: Text(e.toString()),
+                          backgroundColor: Colors.red,
+                        ),
                       );
                     }
                   }
@@ -268,7 +406,9 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Delete Subject?"),
-        content: Text("Are you sure you want to delete ${subject.courseCode} - ${subject.courseTitle}?"),
+        content: Text(
+          "Are you sure you want to delete ${subject.courseCode} - ${subject.courseTitle}?",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -313,7 +453,7 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
 
     if (result != null && result.files.single.path != null) {
       final path = result.files.single.path!;
-      
+
       if (!mounted) return;
       showDialog(
         context: context,
@@ -322,8 +462,10 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
       );
 
       try {
-        final count = await ref.read(subjectsProvider.notifier).importFromExcel(path);
-        
+        final count = await ref
+            .read(subjectsProvider.notifier)
+            .importFromExcel(path);
+
         if (!mounted) return;
         Navigator.pop(context); // Close loading
 
@@ -362,7 +504,9 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
               children: [
                 Text(
                   "Organize subjects by academic year",
-                  style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const Spacer(),
                 FilledButton.icon(
@@ -389,26 +533,38 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                       elevation: 1,
                       children: List.generate(4, (index) {
                         final year = index + 1;
-                        final yearSubjects = subjects.where((s) => s.year == year).toList();
-                        
+                        final yearSubjects = subjects
+                            .where((s) => s.year == year)
+                            .toList();
+
                         return ExpansionPanel(
                           headerBuilder: (context, isExpanded) => ListTile(
                             title: Text(
                               "Year $year",
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
                             ),
-                            subtitle: Text("${yearSubjects.length} subjects registered"),
+                            subtitle: Text(
+                              "${yearSubjects.length} subjects registered",
+                            ),
                           ),
                           isExpanded: _isExpanded[index],
                           body: Padding(
-                            padding: const EdgeInsets.only(left: 16.0, right: 16.0, bottom: 16.0),
+                            padding: const EdgeInsets.only(
+                              left: 16.0,
+                              right: 16.0,
+                              bottom: 16.0,
+                            ),
                             child: Column(
                               children: [
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
                                     OutlinedButton.icon(
-                                      onPressed: () => _showAddEditDialog(null, year),
+                                      onPressed: () =>
+                                          _showAddEditDialog(null, year),
                                       icon: const Icon(Icons.add),
                                       label: Text("Add Subject (Year $year)"),
                                     ),
@@ -420,15 +576,19 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                                     padding: const EdgeInsets.all(16.0),
                                     child: Text(
                                       "No subjects registered for Year $year.",
-                                      style: TextStyle(color: theme.colorScheme.outline),
+                                      style: TextStyle(
+                                        color: theme.colorScheme.outline,
+                                      ),
                                     ),
                                   )
                                 else
                                   ListView.separated(
                                     shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
                                     itemCount: yearSubjects.length,
-                                    separatorBuilder: (c, i) => const Divider(height: 1),
+                                    separatorBuilder: (c, i) =>
+                                        const Divider(height: 1),
                                     itemBuilder: (context, sIndex) {
                                       final subject = yearSubjects[sIndex];
                                       return ListTile(
@@ -436,21 +596,41 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                                           children: [
                                             Text(
                                               subject.courseCode,
-                                              style: const TextStyle(fontWeight: FontWeight.bold),
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                             const SizedBox(width: 8),
                                             Text(subject.courseTitle),
+
+                                            if (subject.isFixed)
+                                              const Padding(
+                                                padding: EdgeInsets.only(
+                                                  left: 8,
+                                                ),
+                                                child: Icon(
+                                                  Icons.lock,
+                                                  size: 18,
+                                                  color: Colors.orange,
+                                                ),
+                                              ),
                                             const SizedBox(width: 12),
                                             Chip(
                                               label: Text(
                                                 subject.subjectType,
-                                                style: const TextStyle(fontSize: 10),
+                                                style: const TextStyle(
+                                                  fontSize: 10,
+                                                ),
                                               ),
                                               padding: EdgeInsets.zero,
-                                              visualDensity: VisualDensity.compact,
-                                              backgroundColor: subject.subjectType == 'Lab'
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              backgroundColor:
+                                                  subject.subjectType == 'Lab'
                                                   ? Colors.amber.shade100
-                                                  : theme.colorScheme.primaryContainer,
+                                                  : theme
+                                                        .colorScheme
+                                                        .primaryContainer,
                                             ),
                                           ],
                                         ),
@@ -461,12 +641,19 @@ class _SubjectsTabState extends ConsumerState<SubjectsTab> {
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             IconButton(
-                                              icon: const Icon(Icons.edit_outlined),
-                                              onPressed: () => _showAddEditDialog(subject),
+                                              icon: const Icon(
+                                                Icons.edit_outlined,
+                                              ),
+                                              onPressed: () =>
+                                                  _showAddEditDialog(subject),
                                             ),
                                             IconButton(
-                                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                                              onPressed: () => _deleteSubject(subject),
+                                              icon: const Icon(
+                                                Icons.delete_outline,
+                                                color: Colors.redAccent,
+                                              ),
+                                              onPressed: () =>
+                                                  _deleteSubject(subject),
                                             ),
                                           ],
                                         ),

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class Subject {
   final int? id;
   final String courseCode;
@@ -8,6 +10,8 @@ class Subject {
   final int faculty1Id;
   final int? faculty2Id;
   final int? faculty3Id;
+  final bool isFixed;
+  final List<String>? lockedSlots;
 
   // Resolved names (optional, populated via joins)
   final String? faculty1Name;
@@ -24,6 +28,8 @@ class Subject {
     required this.faculty1Id,
     this.faculty2Id,
     this.faculty3Id,
+    this.isFixed = false,
+    this.lockedSlots,
     this.faculty1Name,
     this.faculty2Name,
     this.faculty3Name,
@@ -40,6 +46,8 @@ class Subject {
       'faculty1_id': faculty1Id,
       'faculty2_id': faculty2Id,
       'faculty3_id': faculty3Id,
+      'is_fixed': isFixed ? 1 : 0,
+      'locked_slots': jsonEncode(lockedSlots ?? []),
     };
   }
 
@@ -54,6 +62,10 @@ class Subject {
       faculty1Id: map['faculty1_id'] as int,
       faculty2Id: map['faculty2_id'] as int?,
       faculty3Id: map['faculty3_id'] as int?,
+      isFixed: (map['is_fixed'] ?? 0) == 1,
+      lockedSlots: map['locked_slots'] != null
+          ? List<String>.from(jsonDecode(map['locked_slots']))
+          : [],
       faculty1Name: map['faculty1_name'] as String?,
       faculty2Name: map['faculty2_name'] as String?,
       faculty3Name: map['faculty3_name'] as String?,
@@ -70,6 +82,8 @@ class Subject {
     int? faculty1Id,
     int? faculty2Id,
     int? faculty3Id,
+    bool? isFixed,
+    List<String>? lockedSlots,
     String? faculty1Name,
     String? faculty2Name,
     String? faculty3Name,
@@ -84,6 +98,8 @@ class Subject {
       faculty1Id: faculty1Id ?? this.faculty1Id,
       faculty2Id: faculty2Id ?? this.faculty2Id,
       faculty3Id: faculty3Id ?? this.faculty3Id,
+      isFixed: isFixed ?? this.isFixed,
+      lockedSlots: lockedSlots ?? this.lockedSlots,
       faculty1Name: faculty1Name ?? this.faculty1Name,
       faculty2Name: faculty2Name ?? this.faculty2Name,
       faculty3Name: faculty3Name ?? this.faculty3Name,
@@ -93,9 +109,19 @@ class Subject {
   // Returns a nice display list of all assigned faculties
   List<String> get facultyNames {
     final list = <String>[];
-    if (faculty1Name != null && faculty1Name!.isNotEmpty) list.add(faculty1Name!);
-    if (faculty2Name != null && faculty2Name!.isNotEmpty) list.add(faculty2Name!);
-    if (faculty3Name != null && faculty3Name!.isNotEmpty) list.add(faculty3Name!);
+
+    if (faculty1Name != null && faculty1Name!.isNotEmpty) {
+      list.add(faculty1Name!);
+    }
+
+    if (faculty2Name != null && faculty2Name!.isNotEmpty) {
+      list.add(faculty2Name!);
+    }
+
+    if (faculty3Name != null && faculty3Name!.isNotEmpty) {
+      list.add(faculty3Name!);
+    }
+
     return list;
   }
 }

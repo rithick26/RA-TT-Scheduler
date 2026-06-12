@@ -24,11 +24,23 @@ class DbHelper {
     return await databaseFactory.openDatabase(
       dbPath,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onConfigure: (db) async {
           await db.execute('PRAGMA foreign_keys = ON');
         },
         onCreate: _onCreate,
+
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await db.execute(
+              'ALTER TABLE subjects ADD COLUMN is_fixed INTEGER NOT NULL DEFAULT 0',
+            );
+
+            await db.execute(
+              'ALTER TABLE subjects ADD COLUMN locked_slots TEXT',
+            );
+          }
+        },
       ),
     );
   }
@@ -67,6 +79,8 @@ class DbHelper {
         faculty1_id INTEGER NOT NULL,
         faculty2_id INTEGER,
         faculty3_id INTEGER,
+        is_fixed INTEGER NOT NULL DEFAULT 0,
+        locked_slots TEXT,
         FOREIGN KEY (faculty1_id) REFERENCES teachers(id) ON DELETE RESTRICT,
         FOREIGN KEY (faculty2_id) REFERENCES teachers(id) ON DELETE SET NULL,
         FOREIGN KEY (faculty3_id) REFERENCES teachers(id) ON DELETE SET NULL

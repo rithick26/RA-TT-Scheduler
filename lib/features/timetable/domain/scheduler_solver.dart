@@ -12,17 +12,6 @@ class SchedulerException implements Exception {
 class SchedulerSolver {
   final List<Subject> subjects;
   final Map<int, int> hoursPerWeek; // subjectId -> hours
-  static const theoryPairs = [
-    [0, 1],
-    [2, 3],
-    [4, 5],
-    [6, 7],
-  ];
-
-  static const afternoonPairs = [
-    [4, 5],
-    [6, 7],
-  ];
 
   SchedulerSolver({required this.subjects, required this.hoursPerWeek});
 
@@ -41,10 +30,11 @@ class SchedulerSolver {
     // 2. Year hours check
     for (int year = 1; year <= 4; year++) {
       final yearSubjects = subjects.where((s) => s.year == year).toList();
-      final totalHours = yearSubjects.fold<int>(
-        0,
-        (sum, s) => sum + (hoursPerWeek[s.id] ?? 0),
-      );
+      int totalHours = 0;
+
+      for (final s in yearSubjects) {
+        totalHours += hoursPerWeek[s.id] ?? 0;
+      }
       if (totalHours > 40) {
         throw SchedulerException(
           "Year $year requires $totalHours hours in total, but only 40 weekly slots are available.",
@@ -96,20 +86,76 @@ class SchedulerSolver {
         );
       }
     }
+  }
+
+  void _validateFixedSlots() {
     for (final subject in subjects) {
-      final hours = hoursPerWeek[subject.id] ?? 0;
+      if (!subject.isFixed) continue;
 
-      final type = subject.subjectType.toLowerCase();
+      final slots = subject.lockedSlots ?? [];
+      final uniqueSlots = slots.toSet();
 
-      if (type == 'theory' && hours % 2 != 0) {
+      if (uniqueSlots.length != slots.length) {
         throw SchedulerException(
-          '${subject.courseCode} theory subject must have even hours.',
+          "${subject.courseCode}: Duplicate fixed slots selected.",
+        );
+      }
+      final requiredHours = hoursPerWeek[subject.id] ?? 0;
+
+      if (slots.length > requiredHours) {
+        throw SchedulerException(
+          "${subject.courseCode}: More fixed periods selected than weekly hours.",
         );
       }
 
-      if ((type == 'project' || type == 'additional') && hours % 2 != 0) {
+      if (slots.isEmpty) {
         throw SchedulerException(
-          '${subject.courseCode} must be allocated in pairs.',
+          "${subject.courseCode} is marked Fixed but no slots selected.",
+        );
+      }
+
+      final type = subject.subjectType.toLowerCase();
+      if (type == 'lab') {
+        final hours = hoursPerWeek[subject.id] ?? 0;
+
+        final slot = slots.first;
+        final period = int.parse(slot.split('_')[1]);
+
+        if (period + hours > 8) {
+          throw SchedulerException(
+            "${subject.courseCode}: Fixed lab exceeds day boundary.",
+          );
+        }
+      }
+
+      if (type == 'theory') {
+        for (final slot in slots) {
+          final parts = slot.split('_');
+          final period = int.parse(parts[1]);
+
+          if (!(period == 0 || period == 2 || period == 4 || period == 6)) {
+            throw SchedulerException(
+              "${subject.courseCode}: Theory must start at P1,P3,P5,P7.",
+            );
+          }
+        }
+      }
+
+      if (type == 'project' || type == 'additional') {
+        for (final slot in slots) {
+          final parts = slot.split('_');
+          final period = int.parse(parts[1]);
+
+          if (!(period == 4 || period == 6)) {
+            throw SchedulerException(
+              "${subject.courseCode}: Project/Additional must start at P5 or P7.",
+            );
+          }
+        }
+      }
+      if (type == 'lab' && slots.length > 1) {
+        throw SchedulerException(
+          "${subject.courseCode}: Lab can have only one fixed starting slot.",
         );
       }
     }
@@ -119,6 +165,7 @@ class SchedulerSolver {
   List<TimetableSlot> solve({int seed = 42}) {
     // Run pre-validations
     validate();
+    _validateFixedSlots();
 
     final rand = Random(seed);
     const int maxRestarts = 20;
@@ -155,13 +202,86 @@ class SchedulerSolver {
     for (final s in subjects) {
       remainingHours[s.id!] = hoursPerWeek[s.id!] ?? 0;
     }
+    // Place fixed classes before scheduling
+    for (final subject in subjects) {
+      if (!subject.isFixed) continue;
+
+      final yearIdx = subject.year - 1;
+
+      for (final slot in (subject.lockedSlots ?? [])) {
+        final parts = slot.split('_');
+
+        final day = int.parse(parts[0]);
+        final period = int.parse(parts[1]);
+
+        if (grid[yearIdx][day][period] != null) {
+          throw SchedulerException(
+            "Fixed slot conflict for ${subject.courseCode}",
+          );
+        }
+
+        if (_hasTeacherClash(grid, subject, day, period, yearIdx)) {
+          throw SchedulerException(
+            "Teacher clash in fixed slot for ${subject.courseCode}",
+          );
+        }
+
+        final type = subject.subjectType.toLowerCase();
+
+        if (type == 'lab') {
+          final labHours = hoursPerWeek[subject.id!] ?? 0;
+
+          for (int i = 0; i < labHours; i++) {
+            if (period + i >= 8) {
+              throw SchedulerException(
+                "${subject.courseCode}: Lab exceeds day boundary.",
+              );
+            }
+
+            if (grid[yearIdx][day][period + i] != null) {
+              throw SchedulerException(
+                "${subject.courseCode}: Fixed lab conflict.",
+              );
+            }
+
+            grid[yearIdx][day][period + i] = subject;
+          }
+
+          remainingHours[subject.id!] = 0;
+        } else if (type == 'theory' ||
+            type == 'project' ||
+            type == 'additional') {
+          if (period + 1 >= 8) {
+            throw SchedulerException(
+              "${subject.courseCode}: Invalid fixed pair.",
+            );
+          }
+
+          grid[yearIdx][day][period] = subject;
+          grid[yearIdx][day][period + 1] = subject;
+
+          remainingHours[subject.id!] = (remainingHours[subject.id!] ?? 0) - 2;
+        } else {
+          grid[yearIdx][day][period] = subject;
+
+          remainingHours[subject.id!] = (remainingHours[subject.id!] ?? 0) - 1;
+        }
+      }
+    }
+    for (final subject in subjects) {
+      if ((remainingHours[subject.id!] ?? 0) < 0) {
+        throw SchedulerException(
+          "${subject.courseCode}: Fixed periods exceed weekly hours.",
+        );
+      }
+    }
 
     // List of labs to schedule
     final labs = subjects
         .where(
           (s) =>
               s.subjectType.toLowerCase() == 'lab' &&
-              (hoursPerWeek[s.id!] ?? 0) > 0,
+              (remainingHours[s.id!] ?? 0) > 0,
         )
         .toList();
     // Sort labs by hours descending to place larger labs first (heuristics)
@@ -174,7 +294,7 @@ class SchedulerSolver {
         .where(
           (s) =>
               s.subjectType.toLowerCase() != 'lab' &&
-              (hoursPerWeek[s.id!] ?? 0) > 0,
+              (remainingHours[s.id!] ?? 0) > 0,
         )
         .toList();
 
@@ -235,6 +355,9 @@ class SchedulerSolver {
     if (labIdx >= labs.length) return true;
 
     final lab = labs[labIdx];
+    if (lab.isFixed) {
+      return _scheduleLabs(grid, labs, remaining, labIdx + 1, rand);
+    }
     final hours = remaining[lab.id!]!;
     final yearIdx = lab.year - 1;
 
@@ -335,7 +458,7 @@ class SchedulerSolver {
         remaining,
         yearIdx,
         d,
-        p + 2,
+        p + 1,
         rand,
         isTimeout,
       );
@@ -344,7 +467,7 @@ class SchedulerSolver {
     final year = yearIdx + 1;
     // Get candidate subjects for this year that still have remaining hours
     final candidates = theories
-        .where((s) => s.year == year && remaining[s.id!]! > 0)
+        .where((s) => s.year == year && !s.isFixed && remaining[s.id!]! > 0)
         .toList();
 
     // Shuffling candidate subjects adds randomness to avoid local traps
@@ -352,17 +475,29 @@ class SchedulerSolver {
 
     for (final s in candidates) {
       if (_canPlaceTheory(grid, s, d, p, yearIdx, remaining)) {
+        final rem = remaining[s.id!]!;
         final type = s.subjectType.toLowerCase();
 
-        if (type == 'theory' || type == 'project' || type == 'additional') {
+        // Backtrack
+
+        if ((type == 'theory' || type == 'additional') && rem == 1) {
+          if (type == 'additional' && !(p == 4 || p == 6)) {
+            continue;
+          }
+
+          grid[yearIdx][d][p] = s;
+          remaining[s.id!] = 0;
+        } else if (type == 'theory' ||
+            type == 'project' ||
+            type == 'additional') {
           grid[yearIdx][d][p] = s;
           grid[yearIdx][d][p + 1] = s;
 
-          remaining[s.id!] = remaining[s.id!]! - 2;
+          remaining[s.id!] = rem - 2;
         } else {
           grid[yearIdx][d][p] = s;
 
-          remaining[s.id!] = remaining[s.id!]! - 1;
+          remaining[s.id!] = rem - 1;
         }
 
         if (_scheduleTheories(
@@ -379,15 +514,21 @@ class SchedulerSolver {
         }
 
         // Backtrack
-        if (type == 'theory' || type == 'project' || type == 'additional') {
+
+        if ((type == 'theory' || type == 'additional') && rem == 1) {
+          grid[yearIdx][d][p] = null;
+          remaining[s.id!] = rem;
+        } else if (type == 'theory' ||
+            type == 'project' ||
+            type == 'additional') {
           grid[yearIdx][d][p] = null;
           grid[yearIdx][d][p + 1] = null;
 
-          remaining[s.id!] = remaining[s.id!]! + 2;
+          remaining[s.id!] = rem;
         } else {
           grid[yearIdx][d][p] = null;
 
-          remaining[s.id!] = remaining[s.id!]! + 1;
+          remaining[s.id!] = rem;
         }
       }
     }
@@ -406,7 +547,7 @@ class SchedulerSolver {
         remaining,
         yearIdx,
         d,
-        p + 2,
+        p + 1,
         rand,
         isTimeout,
       )) {
@@ -443,14 +584,18 @@ class SchedulerSolver {
         return false;
       }
 
-      if (p + 1 >= 8) return false;
+      final rem = remaining[subject.id!]!;
 
-      if (grid[yearIdx][d][p + 1] != null) {
-        return false;
-      }
+      if (!(type == 'additional' && rem == 1)) {
+        if (p + 1 >= 8) return false;
 
-      if (_hasTeacherClash(grid, subject, d, p + 1, yearIdx)) {
-        return false;
+        if (grid[yearIdx][d][p + 1] != null) {
+          return false;
+        }
+
+        if (_hasTeacherClash(grid, subject, d, p + 1, yearIdx)) {
+          return false;
+        }
       }
     }
 
@@ -487,7 +632,7 @@ class SchedulerSolver {
     }
 
     // Maximum 4 periods (2 pairs) of same subject per day
-    if (dailyCount >= 4) return false;
+    if (dailyCount >= 6) return false;
 
     return true;
   }
