@@ -129,20 +129,6 @@ An offline Flutter Desktop application designed for academic departments to effi
 
 * excel
 
-## Project Structure
-
-lib/
-├── core/
-│ └── db/
-├── features/
-│ ├── teachers/
-│ ├── subjects/
-│ └── timetable/
-├── presentation/
-│ ├── widgets/
-│ └── about_tab.dart
-└── main.dart
-
 ## Local Storage
 
 All data is stored locally on the user's computer.
